@@ -1,18 +1,18 @@
-<?php 
-include 'includes/header.php'; 
-include 'includes/navbar.php';
+<?php
+require_once $_SERVER['DOCUMENT_ROOT'].'/toko_online/includes/header.php';
 
-if(!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
+if (!isset($_SESSION['user_id'])) {
+    header("Location: /toko_online/login.php");
     exit();
 }
 
-include 'config/database.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/toko_online/includes/navbar.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/toko_online/config/database.php';
+
+$user_id = $_SESSION['user_id'];
 
 // Proses checkout
-if($_SERVER['REQUEST_METHOD'] == 'POST') {
-    $user_id = $_SESSION['user_id'];
-    
+if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     // Ambil data keranjang
     $query = "SELECT k.*, p.harga 
               FROM keranjang k 
@@ -20,13 +20,14 @@ if($_SERVER['REQUEST_METHOD'] == 'POST') {
               WHERE k.user_id = $user_id";
     $result = mysqli_query($conn, $query);
     
-    if(mysqli_num_rows($result) > 0) {
-        // Buat pesanan
+    if (mysqli_num_rows($result) > 0) {
+        // Hitung total harga
         $total_harga = 0;
-        while($row = mysqli_fetch_assoc($result)) {
+        while ($row = mysqli_fetch_assoc($result)) {
             $total_harga += $row['harga'] * $row['qty'];
         }
         
+        // Buat pesanan
         $insert_order = "INSERT INTO pesanan (user_id, total_harga, status) 
                          VALUES ($user_id, $total_harga, 'pending')";
         mysqli_query($conn, $insert_order);
@@ -34,7 +35,7 @@ if($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         // Masukkan detail pesanan
         mysqli_data_seek($result, 0);
-        while($row = mysqli_fetch_assoc($result)) {
+        while ($row = mysqli_fetch_assoc($result)) {
             $produk_id = $row['produk_id'];
             $qty = $row['qty'];
             $harga = $row['harga'];
@@ -48,61 +49,112 @@ if($_SERVER['REQUEST_METHOD'] == 'POST') {
         $delete_cart = "DELETE FROM keranjang WHERE user_id = $user_id";
         mysqli_query($conn, $delete_cart);
         
-        header("Location: history_pesanan.php?success=1");
+        $_SESSION['success'] = "Pesanan berhasil dibuat! Nomor pesanan: #$order_id";
+        header("Location: /toko_online/history_pesanan.php");
+        exit();
+    } else {
+        $_SESSION['error'] = "Keranjang belanja kosong";
+        header("Location: /toko_online/keranjang.php");
         exit();
     }
 }
 
-// Tampilkan form checkout
-$user_id = $_SESSION['user_id'];
+// Ambil data keranjang untuk ditampilkan
 $query = "SELECT k.*, p.nama_produk, p.harga, p.gambar 
           FROM keranjang k 
           JOIN produk p ON k.produk_id = p.id 
           WHERE k.user_id = $user_id";
 $result = mysqli_query($conn, $query);
-
-if(mysqli_num_rows($result) > 0) {
-    $total = 0;
-    echo '<section class="checkout">';
-    echo '<h1>Checkout</h1>';
-    echo '<form method="post">';
-    
-    echo '<div class="order-summary">';
-    echo '<h2>Ringkasan Pesanan</h2>';
-    echo '<table>';
-    echo '<tr><th>Produk</th><th>Harga</th><th>Qty</th><th>Subtotal</th></tr>';
-    
-    while($row = mysqli_fetch_assoc($result)) {
-        $subtotal = $row['harga'] * $row['qty'];
-        $total += $subtotal;
-        
-        echo '<tr>';
-        echo '<td>';
-        echo '<img src="assets/images/'.$row['gambar'].'" width="50"> ';
-        echo $row['nama_produk'];
-        echo '</td>';
-        echo '<td>Rp '.number_format($row['harga'], 0, ',', '.').'</td>';
-        echo '<td>'.$row['qty'].'</td>';
-        echo '<td>Rp '.number_format($subtotal, 0, ',', '.').'</td>';
-        echo '</tr>';
-    }
-    
-    echo '<tr><td colspan="3">Total</td><td>Rp '.number_format($total, 0, ',', '.').'</td></tr>';
-    echo '</table>';
-    echo '</div>';
-    
-    echo '<div class="shipping-info">';
-    echo '<h2>Informasi Pengiriman</h2>';
-    echo '<label for="address">Alamat:</label>';
-    echo '<textarea id="address" name="address" required></textarea>';
-    echo '</div>';
-    
-    echo '<button type="submit" class="btn">Proses Pembayaran</button>';
-    echo '</form>';
-    echo '</section>';
-} else {
-    echo '<p>Keranjang belanja Anda kosong.</p>';
-}
 ?>
 
-<?php include 'includes/footer.php'; ?>
+<section class="checkout">
+    <div class="checkout-header">
+        <h1><i class="fas fa-credit-card"></i> Checkout</h1>
+        <?php if (isset($_SESSION['error'])): ?>
+            <div class="alert error"><?= $_SESSION['error']; unset($_SESSION['error']); ?></div>
+        <?php endif; ?>
+    </div>
+    
+    <div class="checkout-container">
+        <?php if (mysqli_num_rows($result) > 0): ?>
+            <div class="checkout-summary">
+                <h2><i class="fas fa-receipt"></i> Ringkasan Pesanan</h2>
+                <table class="order-summary">
+                    <thead>
+                        <tr>
+                            <th>Produk</th>
+                            <th>Harga</th>
+                            <th>Jumlah</th>
+                            <th>Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php 
+                        $total = 0;
+                        while ($row = mysqli_fetch_assoc($result)): 
+                            $subtotal = $row['harga'] * $row['qty'];
+                            $total += $subtotal;
+                        ?>
+                            <tr>
+                                <td class="product-info">
+                                    <img src="/toko_online/assets/images/<?= $row['gambar'] ?>" width="50" alt="<?= $row['nama_produk'] ?>">
+                                    <span><?= $row['nama_produk'] ?></span>
+                                </td>
+                                <td>Rp <?= number_format($row['harga'], 0, ',', '.') ?></td>
+                                <td><?= $row['qty'] ?></td>
+                                <td>Rp <?= number_format($subtotal, 0, ',', '.') ?></td>
+                            </tr>
+                        <?php endwhile; ?>
+                        <tr class="total-row">
+                            <td colspan="3" class="text-right"><strong>Total</strong></td>
+                            <td><strong>Rp <?= number_format($total, 0, ',', '.') ?></strong></td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="checkout-form">
+                <h2><i class="fas fa-truck"></i> Informasi Pengiriman</h2>
+                <form method="post">
+                    <div class="form-group">
+                        <label for="nama">Nama Penerima</label>
+                        <input type="text" id="nama" name="nama" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="telepon">No. Telepon</label>
+                        <input type="tel" id="telepon" name="telepon" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="alamat">Alamat Lengkap</label>
+                        <textarea id="alamat" name="alamat" rows="4" required></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="catatan">Catatan (Opsional)</label>
+                        <textarea id="catatan" name="catatan" rows="2"></textarea>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-check"></i> Konfirmasi Pembayaran
+                        </button>
+                    </div>
+                </form>
+            </div>
+        <?php else: ?>
+            <div class="empty-cart">
+                <i class="fas fa-shopping-cart fa-3x"></i>
+                <p>Keranjang belanja Anda kosong</p>
+                <a href="/toko_online/katalog.php" class="btn btn-primary">
+                    <i class="fas fa-shopping-bag"></i> Mulai Belanja
+                </a>
+            </div>
+        <?php endif; ?>
+    </div>
+</section>
+
+<?php 
+require_once $_SERVER['DOCUMENT_ROOT'].'/toko_online/includes/footer.php';
+?>

@@ -8,7 +8,6 @@ if(!isset($_SESSION['user_id']) || $_SESSION['level'] != 'admin') {
 
 if(isset($_GET['id'])) {
     $id = $_GET['id'];
-    
     $query = "SELECT gambar FROM produk WHERE id = $id";
     $result = mysqli_query($conn, $query);
     $product = mysqli_fetch_assoc($result);

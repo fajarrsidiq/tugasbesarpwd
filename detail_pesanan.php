@@ -1,70 +1,104 @@
-<?php 
-include 'includes/header.php'; 
-include 'includes/navbar.php';
+<?php
+require_once $_SERVER['DOCUMENT_ROOT'].'/toko_online/includes/header.php';
 
-if(!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
+if (!isset($_SESSION['user_id'])) {
+    header("Location: /toko_online/login.php");
     exit();
 }
 
-include 'config/database.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/toko_online/includes/navbar.php';
+require_once $_SERVER['DOCUMENT_ROOT'].'/toko_online/config/database.php';
 
-if(isset($_GET['id'])) {
-    $order_id = $_GET['id'];
-    $user_id = $_SESSION['user_id'];
-    
-    // Cek apakah pesanan milik user yang login
-    $check = "SELECT * FROM pesanan WHERE id = $order_id AND user_id = $user_id";
-    $result = mysqli_query($conn, $check);
-    
-    if(mysqli_num_rows($result) == 0) {
-        header("Location: history_pesanan.php");
-        exit();
-    }
-    
-    $order = mysqli_fetch_assoc($result);
-    
-    // Ambil detail pesanan
-    $query = "SELECT pd.*, p.nama_produk, p.gambar 
-              FROM pesanan_detail pd 
-              JOIN produk p ON pd.produk_id = p.id 
-              WHERE pd.pesanan_id = $order_id";
-    $details = mysqli_query($conn, $query);
-} else {
-    header("Location: history_pesanan.php");
+if (!isset($_GET['id'])) {
+    header("Location: /toko_online/history_pesanan.php");
     exit();
 }
+
+$order_id = (int)$_GET['id'];
+$user_id = $_SESSION['user_id'];
+
+// Cek apakah pesanan milik user yang login
+$query = "SELECT p.*, u.username 
+          FROM pesanan p 
+          JOIN users u ON p.user_id = u.id 
+          WHERE p.id = $order_id AND p.user_id = $user_id";
+$result = mysqli_query($conn, $query);
+$order = mysqli_fetch_assoc($result);
+
+if (!$order) {
+    header("Location: /toko_online/history_pesanan.php");
+    exit();
+}
+
+// Ambil detail pesanan
+$query = "SELECT pd.*, p.nama_produk, p.gambar 
+          FROM pesanan_detail pd 
+          JOIN produk p ON pd.produk_id = p.id 
+          WHERE pd.pesanan_id = $order_id";
+$details = mysqli_query($conn, $query);
 ?>
 
 <section class="order-detail">
-    <h1>Detail Pesanan #<?php echo $order['id']; ?></h1>
-    
-    <div class="order-info">
-        <p><strong>Tanggal:</strong> <?php echo date('d M Y H:i', strtotime($order['created_at'])); ?></p>
-        <p><strong>Status:</strong> <?php echo ucfirst($order['status']); ?></p>
-        <p><strong>Total:</strong> Rp <?php echo number_format($order['total_harga'], 0, ',', '.'); ?></p>
+    <div class="detail-header">
+        <h1><i class="fas fa-file-invoice"></i> Detail Pesanan #<?= $order['id'] ?></h1>
+        <a href="/toko_online/history_pesanan.php" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Kembali
+        </a>
     </div>
     
-    <h2>Produk</h2>
-    <table>
-        <tr>
-            <th>Produk</th>
-            <th>Harga</th>
-            <th>Qty</th>
-            <th>Subtotal</th>
-        </tr>
-        <?php while($item = mysqli_fetch_assoc($details)): ?>
-            <tr>
-                <td>
-                    <img src="assets/images/<?php echo $item['gambar']; ?>" width="50">
-                    <?php echo $item['nama_produk']; ?>
-                </td>
-                <td>Rp <?php echo number_format($item['harga'], 0, ',', '.'); ?></td>
-                <td><?php echo $item['qty']; ?></td>
-                <td>Rp <?php echo number_format($item['harga'] * $item['qty'], 0, ',', '.'); ?></td>
-            </tr>
-        <?php endwhile; ?>
-    </table>
+    <div class="order-info">
+        <div class="info-item">
+            <h3>Status Pesanan</h3>
+            <p>
+                <span class="status-label <?= $order['status'] ?>">
+                    <?= ucfirst($order['status']) ?>
+                </span>
+            </p>
+        </div>
+        
+        <div class="info-item">
+            <h3>Tanggal Pesanan</h3>
+            <p><?= date('d M Y H:i', strtotime($order['created_at'])) ?></p>
+        </div>
+        
+        <div class="info-item">
+            <h3>Total Pembayaran</h3>
+            <p class="total-price">Rp <?= number_format($order['total_harga'], 0, ',', '.') ?></p>
+        </div>
+    </div>
+    
+    <div class="order-products">
+        <h2><i class="fas fa-boxes"></i> Produk yang Dipesan</h2>
+        <table class="product-table">
+            <thead>
+                <tr>
+                    <th>Produk</th>
+                    <th>Harga</th>
+                    <th>Jumlah</th>
+                    <th>Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php while ($item = mysqli_fetch_assoc($details)): ?>
+                    <tr>
+                        <td class="product-info">
+                            <img src="/toko_online/assets/images/<?= $item['gambar'] ?>" width="50" alt="<?= $item['nama_produk'] ?>">
+                            <span><?= $item['nama_produk'] ?></span>
+                        </td>
+                        <td>Rp <?= number_format($item['harga'], 0, ',', '.') ?></td>
+                        <td><?= $item['qty'] ?></td>
+                        <td>Rp <?= number_format($item['harga'] * $item['qty'], 0, ',', '.') ?></td>
+                    </tr>
+                <?php endwhile; ?>
+                <tr class="total-row">
+                    <td colspan="3" class="text-right"><strong>Total</strong></td>
+                    <td><strong>Rp <?= number_format($order['total_harga'], 0, ',', '.') ?></strong></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
 </section>
 
-<?php include 'includes/footer.php'; ?>
+<?php 
+require_once $_SERVER['DOCUMENT_ROOT'].'/toko_online/includes/footer.php';
+?>

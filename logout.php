@@ -2,6 +2,6 @@
 session_start();
 session_unset();
 session_destroy();
-header("Location: index.php");
+header("Location: /toko_online/login.php");
 exit();
 ?>
